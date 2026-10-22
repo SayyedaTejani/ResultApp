@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Result Analyzer – XI Tabulation Register</title>
 <style>
-:root{--bg:#f6f4ef;--sf:#fff;--tx:#1d2b2a;--mu:#5f6d6b;--ln:#dcd8cc;--ac:#0f5c55;--ok:#1d7a4b;--bad:#b3261e;--warn:#9a6a00;--bar:#0f5c55;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121816;--sf:#1b2321;--tx:#e8efed;--mu:#9bb0ac;--ln:#2d3b38;--ac:#5cc4b8;--ok:#5fd394;--bad:#ff8a80;--warn:#e8b84a;--bar:#5cc4b8;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#121816;--sf:#1b2321;--tx:#e8efed;--mu:#9bb0ac;--ln:#2d3b38;--ac:#5cc4b8;--ok:#5fd394;--bad:#ff8a80;--warn:#e8b84a;--bar:#5cc4b8;color-scheme:dark}
+:root{--failbg:#fde7e5;--bg:#f6f4ef;--sf:#fff;--tx:#1d2b2a;--mu:#5f6d6b;--ln:#dcd8cc;--ac:#0f5c55;--ok:#1d7a4b;--bad:#b3261e;--warn:#9a6a00;--bar:#0f5c55;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--failbg:#3d2220;--bg:#121816;--sf:#1b2321;--tx:#e8efed;--mu:#9bb0ac;--ln:#2d3b38;--ac:#5cc4b8;--ok:#5fd394;--bad:#ff8a80;--warn:#e8b84a;--bar:#5cc4b8;color-scheme:dark}}
+:root[data-theme="dark"]{--failbg:#3d2220;--bg:#121816;--sf:#1b2321;--tx:#e8efed;--mu:#9bb0ac;--ln:#2d3b38;--ac:#5cc4b8;--ok:#5fd394;--bad:#ff8a80;--warn:#e8b84a;--bar:#5cc4b8;color-scheme:dark}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
@@ -35,6 +35,7 @@ tr:last-child td{border-bottom:0}
 .bar{display:inline-block;height:10px;border-radius:5px;background:var(--bar);vertical-align:middle;min-width:2px}
 .tag{padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid currentColor}
 .p{color:var(--ok)}.f{color:var(--bad)}.w{color:var(--warn)}
+tr.fail td{background:var(--failbg)}tr.fail td:first-child{box-shadow:inset 4px 0 0 var(--bad)}
 .tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 input,select{background:var(--sf);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:9px 10px;font:inherit}
 .note{color:var(--mu);font-size:13px;margin-top:8px}
@@ -47,13 +48,15 @@ input,select{background:var(--sf);color:var(--tx);border:1px solid var(--ln);bor
 <p class="sub">Upload the Tabulation Register PDF. The file is read inside your browser and is not sent anywhere. You get pass and fail counts, class-wise totals, division and subject analysis, and a searchable student list.</p>
 
 <div class="drop" id="drop">
-  <p style="margin:0 0 12px">Drop the register PDF here, or choose a file</p>
-  <button id="pick">Choose PDF</button>
-  <input type="file" id="file" accept="application/pdf" class="hide">
+  <p style="margin:0 0 12px">Drop the register PDF (or a saved backup file) here, or choose a file</p>
+  <button id="pick">Choose file</button>
+  <input type="file" id="file" accept="application/pdf,.json" class="hide">
   <div id="msg" role="status"></div>
 </div>
 
 <div id="out" class="hide">
+  <div class="tools" style="margin-top:18px"><button id="bk" class="alt">Backup (download file)</button><button id="st">Store in this browser</button><button id="rm" class="alt hide">Remove stored copy</button></div>
+  <p class="note" id="stmsg"></p>
   <h2>Overall result</h2>
   <div class="cards" id="cards"></div>
   <p class="note" id="den"></p>
@@ -141,6 +144,7 @@ function fin(c){
 async function load(file){
   const msg=$("msg");msg.className="";
   try{
+    if(/\.json$/i.test(file.name)){const j=JSON.parse(await file.text());if(!j.students||!j.students.length)throw new Error("This backup has no students.");S=j.students;msg.textContent="Restored "+S.length+" students from backup.";show();return;}
     pdfjsLib.GlobalWorkerOptions.workerSrc=WORKER;
     const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
     let lines=[];
@@ -186,7 +190,7 @@ function filt(){
 function list(){
   const x=filt();
   $("stu").innerHTML="<tr><th class='n'>Roll</th><th>Div</th><th>Name</th><th class='n'>Total /600</th><th class='n'>%</th><th>Result</th><th>Failed subjects</th></tr>"+
-    x.map(s=>`<tr><td class="n">${s.roll}</td><td>${esc(s.div)}</td><td>${esc(s.name)}</td><td class="n">${s.total??"–"}</td><td class="n">${s.pct??"–"}</td><td><span class="tag ${s.passed?"p":s.cat==="Unclear"?"w":"f"}">${s.cat}</span></td><td>${s.failSubs.join(", ")||"–"}</td></tr>`).join("");
+    x.map(s=>`<tr class="${!s.passed&&s.cat!=="Unclear"?"fail":""}"><td class="n">${s.roll}</td><td>${esc(s.div)}</td><td>${esc(s.name)}</td><td class="n">${s.total??"–"}</td><td class="n">${s.pct??"–"}</td><td><span class="tag ${s.passed?"p":s.cat==="Unclear"?"w":"f"}">${s.cat}</span></td><td>${s.failSubs.join(", ")||"–"}</td></tr>`).join("");
   $("cnt").textContent="Showing "+x.length+" of "+S.length+" students.";
 }
 ["q","fr","fd"].forEach(i=>$(i).addEventListener("input",list));
@@ -195,6 +199,12 @@ $("csv").onclick=()=>{
   const b=new Blob([rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n")],{type:"text/csv"});
   const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="results.csv";a.click();
 };
+const KEY="resultAnalyzer.v1";
+const pack=()=>JSON.stringify({app:"college-result-analytics",saved:new Date().toISOString(),students:S});
+$("bk").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([pack()],{type:"application/json"}));a.download="result-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();$("stmsg").textContent="Backup file downloaded. Keep it private. Do not upload it to a public GitHub repository.";};
+$("st").onclick=()=>{try{localStorage.setItem(KEY,pack());$("rm").classList.remove("hide");$("stmsg").textContent="Stored in this browser on "+new Date().toLocaleString()+". It opens automatically next time on this device.";}catch(e){$("stmsg").textContent="Could not store in this browser (storage may be blocked or full). Use Backup instead.";}};
+$("rm").onclick=()=>{try{localStorage.removeItem(KEY)}catch(e){}$("rm").classList.add("hide");$("stmsg").textContent="Stored copy removed from this browser.";};
+try{const v=localStorage.getItem(KEY);if(v){const j=JSON.parse(v);if(j.students&&j.students.length){S=j.students;$("msg").textContent="Opened stored results ("+S.length+" students, saved "+new Date(j.saved).toLocaleDateString()+"). Upload a new PDF to replace them.";$("rm").classList.remove("hide");show();}}}catch(e){}
 $("pick").onclick=()=>$("file").click();
 $("file").onchange=e=>e.target.files[0]&&load(e.target.files[0]);
 const d=$("drop");

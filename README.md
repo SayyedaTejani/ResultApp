@@ -26,9 +26,14 @@ Open `index.html` in Chrome or Edge (internet needed once to load the PDF librar
 - A subject counts as failed when Avg (/2) is below 35 or the student is absent (AB).
 - Students with no recognisable remark are listed under "Need review".
 
+## Backup and store
+
+- **Backup (download file):** saves the analysed results as a `.json` file. Open it again with Choose file to restore, with no PDF needed.
+- **Store in this browser:** keeps the results on this device and opens them automatically next time. Use Remove stored copy on shared computers.
+
 ## Privacy
 
-Never commit student PDFs, Excel or CSV files. The included `.gitignore` blocks them.
+Never commit student PDFs, Excel, CSV or backup `.json` files. The included `.gitignore` blocks them.
 
 ## Next steps (planned)
 
